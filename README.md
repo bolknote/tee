@@ -1,3 +1,3 @@
-More than 15 years ago I programmed a lot in assembler. Later, I lost interest in this language. Recently, reading one code in assembler, I understood that I never programmed in this language for Linux. And I decided to try to write a small program (Linux utility "tee" clone).
+More than 15 years ago I did quite a lot of assembler programming. Later I lost interest in this language, though. But just recently I was reading one piece of assembler code, and It downed on me that I never programmed in this language for Linux. Thats why I’ve decided to try to write a small program in attempt to refresh my skills. 
 
-My goal is to see how to make syscalls, process command-line options and allocate memory using the assembler.
+So, here it is: clone of Linux utility "tee" written in assembler.
