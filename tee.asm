@@ -6,6 +6,7 @@ SYS_WRITE	equ 1
 SYS_OPEN	equ 2
 SYS_CLOSE	equ 3
 SYS_CREAT	equ 85
+SYS_BRK		equ 12
 
 STDIN		equ 0
 STDOUT		equ 1
@@ -17,25 +18,22 @@ O_TRUNC		equ 0x200
 O_APPEND	equ 0x400
 
 CHUNK		equ 8192
-MAXPARAMS	equ 100
 
 section .data
-	errorStr db `: Error opening file for writing\n`
-	.len equ $ - errorStr
+	errorFile db `: Error opening file for writing\n`
+	.len equ $ - errorFile
+
+	errorMemory db `Cannot allocate memory\n`
+	.len  equ $ - errorMemory
 
 section .bss
 	buffer resb CHUNK
-	handlers resq MAXPARAMS
 
 section .text
 	global _start
 
 _start:
-	xor r15, r15 ; append flag
-	mov r14, handlers ; file handlers table
-
-	mov rax, STDOUT
-	call store_filehandler
+	xor r15, r15 ; r15 - append flag
 
 	pop rcx ; argc
 	cmp rcx, 1
@@ -43,12 +41,42 @@ _start:
 
 	cld
 	pop rsi ; skip *argv[0]
-	dec rcx
 
-	cmp rcx, MAXPARAMS
-	jle next_arg
+	; allocate memory for file handlers table
+	push rcx
+	mov rax, SYS_BRK
+	xor rdi, rdi
+	syscall ; get current brk pointer
+	pop rcx
 
-	mov rax, MAXPARAMS
+	cmp rax, 0
+	jl memory_error
+
+	mov r13, rax ; r13 — start of file handlers table
+	mov r14, rax ; r14 — current position in file handlers table
+
+	push rcx
+	lea rdi, [rcx * 8 + rax] ; add necessary space
+	mov rax, SYS_BRK
+	syscall
+	pop rcx
+
+	cmp rax, 0
+	jge allocated
+
+memory_error:
+ 	mov rax, SYS_WRITE
+ 	mov rdi, STDERR
+ 	mov rsi, errorMemory
+ 	mov rdx, errorMemory.len
+ 	syscall
+ 	jmp exit
+
+allocated:
+	mov rax, STDOUT
+	call store_filehandler
+
+	dec rcx ; minus useless for us argv[0]
 
 next_arg:
 	pop rsi ; *argv[]
@@ -102,14 +130,14 @@ tee:
 	xchg rax, rdx ; size read into buffer
 
 	mov rcx, r14
-	sub rcx, handlers ; count of file handlers
-	shr rcx, 3
+	sub rcx, r13 ; count of file handlers
+	shr rcx, 3 ; div by 8
 
 write_loop:
 	push rcx
 
 	mov rax, SYS_WRITE
-	mov rdi, qword [handlers + (rcx - 1) * 8]
+	mov rdi, qword [r13 + (rcx - 1) * 8]
 	syscall
 
 	inc r14
@@ -176,8 +204,8 @@ file_error:
  	syscall
 
  	mov rax, SYS_WRITE
- 	mov rsi, errorStr
- 	mov rdx, errorStr.len
+ 	mov rsi, errorFile
+ 	mov rdx, errorFile.len
  	syscall
  	ret
 
